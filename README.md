@@ -1,13 +1,14 @@
 # sing-box-ss-warp
 
+> [!WARNING]
+> 裸连 Shadowsocks 服务器很容易被封。建议使用 mihomo 的 `dialer-proxy` 功能，把机场节点作为前置代理，再连接这台落地机。
+
 一键在 VPS 上安装 `sing-box`，同时提供两个 Shadowsocks 节点：
 
 - `direct`：走 VPS 自己的公网 IP 出口。
 - `warp`：走 Cloudflare WARP 出口。
 
 两个节点都支持 TCP 和 UDP。WARP 不依赖 `warp-cli proxy`，而是使用 `sing-box` 自己的 WireGuard endpoint。
-
-> 裸连 Shadowsocks 服务器很容易被封。建议使用 mihomo 的 `dialer-proxy` 功能，把机场节点作为前置代理，再连接这台落地机。
 
 支持系统：
 
