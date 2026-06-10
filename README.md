@@ -7,6 +7,8 @@
 
 两个节点都支持 TCP 和 UDP。WARP 不依赖 `warp-cli proxy`，而是使用 `sing-box` 自己的 WireGuard endpoint。
 
+> 裸连 Shadowsocks 服务器很容易被封。建议使用 mihomo 的 `dialer-proxy` 功能，把机场节点作为前置代理，再连接这台落地机。
+
 支持系统：
 
 ```text
