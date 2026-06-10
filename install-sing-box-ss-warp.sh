@@ -20,6 +20,10 @@ Install sing-box with two Shadowsocks inbounds:
   direct port -> VPS public IP
   warp port   -> Cloudflare WARP via sing-box WireGuard endpoint
 
+Supported systems:
+  Debian/Ubuntu with apt
+  RedHat/Fedora/Rocky/Alma with dnf
+
 This installer downloads wgcf from ViRb3/wgcf to register and generate
 the Cloudflare WARP WireGuard profile. wgcf is not a runtime service.
 
@@ -36,7 +40,7 @@ Common environment variables:
   WARP_PASSWORD=<generated if empty>
   SERVER_IP=<auto-detected if empty>
   WGCF_DIR=/root/sing-box-wgcf
-  WGCF_ARCH=<auto-detected: amd64, arm64, armv7, armv6, 386>
+  WGCF_ARCH=<auto-detected: amd64 or arm64>
   WG_ENDPOINT=162.159.192.1:2408
   FORCE_WARP_REGISTER=0
   RUN_VERIFY=1
@@ -56,6 +60,20 @@ need_root() {
 
 need_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "missing command: $1"
+}
+
+detect_pkg_manager() {
+  if command -v apt-get >/dev/null 2>&1; then
+    printf 'apt'
+    return
+  fi
+
+  if command -v dnf >/dev/null 2>&1; then
+    printf 'dnf'
+    return
+  fi
+
+  die "unsupported system: this script requires apt-get or dnf"
 }
 
 json_escape() {
@@ -84,23 +102,40 @@ random_password() {
 }
 
 install_dependencies() {
+  local pkg_manager="$1"
+
   log "installing base dependencies"
-  apt-get update
-  DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    ca-certificates curl gpg openssl python3
+  case "$pkg_manager" in
+    apt)
+      apt-get update
+      DEBIAN_FRONTEND=noninteractive apt-get install -y \
+        ca-certificates curl gpg openssl python3
+      ;;
+    dnf)
+      dnf install -y \
+        ca-certificates curl gnupg2 iproute openssl python3
+      ;;
+    *)
+      die "unsupported package manager: $pkg_manager"
+      ;;
+  esac
 }
 
 install_sing_box() {
+  local pkg_manager="$1"
+
   if [ "${SKIP_SING_BOX_INSTALL:-0}" = "1" ] && command -v sing-box >/dev/null 2>&1; then
     log "SKIP_SING_BOX_INSTALL=1, keeping existing sing-box"
     return
   fi
 
-  log "installing sing-box from SagerNet APT repository"
-  install -d -m 0755 /etc/apt/keyrings
-  curl -fsSL "${SING_BOX_GPG_URL:-https://sing-box.app/gpg.key}" -o /etc/apt/keyrings/sagernet.asc
+  log "installing sing-box from SagerNet repository"
+  case "$pkg_manager" in
+    apt)
+      install -d -m 0755 /etc/apt/keyrings
+      curl -fsSL "${SING_BOX_GPG_URL:-https://sing-box.app/gpg.key}" -o /etc/apt/keyrings/sagernet.asc
 
-  cat > /etc/apt/sources.list.d/sagernet.sources <<'EOF'
+      cat > /etc/apt/sources.list.d/sagernet.sources <<'EOF'
 Types: deb
 URIs: https://deb.sagernet.org/
 Suites: *
@@ -109,8 +144,22 @@ Enabled: yes
 Signed-By: /etc/apt/keyrings/sagernet.asc
 EOF
 
-  apt-get update
-  DEBIAN_FRONTEND=noninteractive apt-get install -y sing-box
+      apt-get update
+      DEBIAN_FRONTEND=noninteractive apt-get install -y sing-box
+      ;;
+    dnf)
+      if dnf config-manager addrepo --from-repofile=https://sing-box.app/sing-box.repo >/dev/null 2>&1; then
+        true
+      else
+        dnf install -y dnf-plugins-core
+        dnf config-manager --add-repo https://sing-box.app/sing-box.repo
+      fi
+      dnf install -y sing-box
+      ;;
+    *)
+      die "unsupported package manager: $pkg_manager"
+      ;;
+  esac
 }
 
 detect_wgcf_arch() {
@@ -124,17 +173,18 @@ detect_wgcf_arch() {
     aarch64|arm64)
       printf 'arm64'
       ;;
-    armv7l|armv7)
-      printf 'armv7'
+    *)
+      die "unsupported CPU architecture for wgcf: ${machine}; only amd64 and arm64 are supported"
       ;;
-    armv6l|armv6)
-      printf 'armv6'
-      ;;
-    i386|i686|386)
-      printf '386'
+  esac
+}
+
+validate_wgcf_arch() {
+  case "$1" in
+    amd64|arm64)
       ;;
     *)
-      die "unsupported CPU architecture for wgcf: ${machine}; set WGCF_ARCH or WGCF_URL manually"
+      die "unsupported WGCF_ARCH: $1; only amd64 and arm64 are supported"
       ;;
   esac
 }
@@ -148,6 +198,7 @@ install_wgcf() {
   local version="${WGCF_VERSION:-v2.2.31}"
   local version_no_v="${version#v}"
   local arch="${WGCF_ARCH:-$(detect_wgcf_arch)}"
+  validate_wgcf_arch "$arch"
   local url="${WGCF_URL:-https://github.com/ViRb3/wgcf/releases/download/${version}/wgcf_${version_no_v}_linux_${arch}}"
   local tmp
   tmp="$(mktemp)"
@@ -392,8 +443,15 @@ configure_ufw() {
 }
 
 configure_unattended_upgrades() {
+  local pkg_manager="$1"
+
   if [ "${INSTALL_UNATTENDED_UPGRADES:-1}" != "1" ]; then
     log "INSTALL_UNATTENDED_UPGRADES!=1, skipping unattended-upgrades"
+    return
+  fi
+
+  if [ "$pkg_manager" != "apt" ]; then
+    log "automatic updates are only configured on apt systems; skipping for ${pkg_manager}"
     return
   fi
 
@@ -624,8 +682,10 @@ main() {
   esac
 
   need_root
-  need_cmd apt-get
   need_cmd systemctl
+
+  local pkg_manager
+  pkg_manager="$(detect_pkg_manager)"
 
   local direct_port="${DIRECT_PORT:-55221}"
   local warp_port="${WARP_PORT:-36243}"
@@ -642,7 +702,7 @@ main() {
   local config_path="${SING_BOX_CONFIG:-/etc/sing-box/config.json}"
   local creds_path="${CREDS_PATH:-/root/sing-box-ss-warp.txt}"
 
-  install_dependencies
+  install_dependencies "$pkg_manager"
   need_cmd openssl
   need_cmd curl
   need_cmd python3
@@ -654,7 +714,7 @@ main() {
     warp_password="$(random_password)"
   fi
 
-  install_sing_box
+  install_sing_box "$pkg_manager"
   install_wgcf
   generate_warp_profile "$wgcf_dir"
 
@@ -669,7 +729,7 @@ main() {
     "$warp_password"
 
   configure_ufw "$direct_port" "$warp_port"
-  configure_unattended_upgrades
+  configure_unattended_upgrades "$pkg_manager"
   disable_warp_svc
 
   local server_ip

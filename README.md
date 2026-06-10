@@ -7,6 +7,20 @@
 
 两个节点都支持 TCP 和 UDP。WARP 不依赖 `warp-cli proxy`，而是使用 `sing-box` 自己的 WireGuard endpoint。
 
+支持系统：
+
+```text
+Debian / Ubuntu：apt
+RedHat / Fedora / Rocky / Alma：dnf
+```
+
+CPU 架构只支持：
+
+```text
+amd64
+arm64
+```
+
 ## 一键安装
 
 先 SSH 登录 VPS，并切到 root：
@@ -38,7 +52,7 @@ cat /root/sing-box-ss-warp.txt
 - 创建两个 Shadowsocks 入口
 - 自动生成 Shadowsocks 密码
 - 放行 UFW 的 TCP/UDP 端口，如果 UFW 已启用
-- 配置自动更新
+- 在 Debian/Ubuntu 上配置自动更新
 - 停用不再需要的 `warp-svc`
 - 验证 direct / warp 的 TCP 和 UDP 是否可用
 
@@ -51,28 +65,18 @@ cat /root/sing-box-ss-warp.txt
 ```text
 x86_64 / amd64  -> linux_amd64
 aarch64 / arm64 -> linux_arm64
-armv7l          -> linux_armv7
-armv6l          -> linux_armv6
-i386 / i686     -> linux_386
 ```
 
-如果你的系统架构比较特殊，可以手动指定：
+如果自动识别不准，可以手动指定：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/robustmaster/sing-box-ss-warp/main/install-sing-box-ss-warp.sh | \
   WGCF_ARCH=arm64 bash
 ```
 
-也可以直接指定下载地址：
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/robustmaster/sing-box-ss-warp/main/install-sing-box-ss-warp.sh | \
-  WGCF_URL='https://example.com/wgcf_binary' bash
-```
-
 `wgcf` 只在安装/生成 profile 时使用，不是常驻服务。安装完成后，WARP 出口由 `sing-box` 的 WireGuard endpoint 提供。
 
-`sing-box` 本身通过 SagerNet APT 源安装，实际可用架构取决于该源提供的包。
+`sing-box` 本身通过 SagerNet 的 APT/DNF 源安装，实际可用架构取决于该源提供的包。
 
 默认端口：
 
@@ -178,11 +182,11 @@ SS_METHOD=2022-blake3-aes-256-gcm
 DIRECT_PASSWORD=<自动生成>
 WARP_PASSWORD=<自动生成>
 SERVER_IP=<自动检测>
-WGCF_ARCH=<自动检测>
+WGCF_ARCH=<自动检测：amd64 或 arm64>
 FORCE_WARP_REGISTER=0
 RUN_VERIFY=1
 DISABLE_WARP_SVC=1
-INSTALL_UNATTENDED_UPGRADES=1
+INSTALL_UNATTENDED_UPGRADES=1  # 仅 Debian/Ubuntu 生效
 ```
 
 查看帮助：
