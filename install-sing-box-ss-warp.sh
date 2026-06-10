@@ -36,6 +36,7 @@ Common environment variables:
   WARP_PASSWORD=<generated if empty>
   SERVER_IP=<auto-detected if empty>
   WGCF_DIR=/root/sing-box-wgcf
+  WGCF_ARCH=<auto-detected: amd64, arm64, armv7, armv6, 386>
   WG_ENDPOINT=162.159.192.1:2408
   FORCE_WARP_REGISTER=0
   RUN_VERIFY=1
@@ -112,6 +113,32 @@ EOF
   DEBIAN_FRONTEND=noninteractive apt-get install -y sing-box
 }
 
+detect_wgcf_arch() {
+  local machine
+  machine="$(uname -m)"
+
+  case "$machine" in
+    x86_64|amd64)
+      printf 'amd64'
+      ;;
+    aarch64|arm64)
+      printf 'arm64'
+      ;;
+    armv7l|armv7)
+      printf 'armv7'
+      ;;
+    armv6l|armv6)
+      printf 'armv6'
+      ;;
+    i386|i686|386)
+      printf '386'
+      ;;
+    *)
+      die "unsupported CPU architecture for wgcf: ${machine}; set WGCF_ARCH or WGCF_URL manually"
+      ;;
+  esac
+}
+
 install_wgcf() {
   if [ "${SKIP_WGCF_INSTALL:-0}" = "1" ] && command -v wgcf >/dev/null 2>&1; then
     log "SKIP_WGCF_INSTALL=1, keeping existing wgcf"
@@ -120,11 +147,12 @@ install_wgcf() {
 
   local version="${WGCF_VERSION:-v2.2.31}"
   local version_no_v="${version#v}"
-  local url="${WGCF_URL:-https://github.com/ViRb3/wgcf/releases/download/${version}/wgcf_${version_no_v}_linux_amd64}"
+  local arch="${WGCF_ARCH:-$(detect_wgcf_arch)}"
+  local url="${WGCF_URL:-https://github.com/ViRb3/wgcf/releases/download/${version}/wgcf_${version_no_v}_linux_${arch}}"
   local tmp
   tmp="$(mktemp)"
 
-  log "installing wgcf ${version}"
+  log "installing wgcf ${version} for linux_${arch}"
   curl -fsSL --retry 3 --connect-timeout 20 "$url" -o "$tmp"
 
   if [ -n "${WGCF_SHA256:-}" ]; then

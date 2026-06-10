@@ -44,9 +44,35 @@ cat /root/sing-box-ss-warp.txt
 
 ## 依赖
 
-脚本会下载 [ViRb3/wgcf](https://github.com/ViRb3/wgcf) 的 Linux amd64 二进制，用来注册 Cloudflare WARP 账号并生成 WireGuard profile。
+脚本会下载 [ViRb3/wgcf](https://github.com/ViRb3/wgcf) 的 Linux 二进制，用来注册 Cloudflare WARP 账号并生成 WireGuard profile。
+
+脚本会按 VPS 的 CPU 架构自动选择 `wgcf` 版本：
+
+```text
+x86_64 / amd64  -> linux_amd64
+aarch64 / arm64 -> linux_arm64
+armv7l          -> linux_armv7
+armv6l          -> linux_armv6
+i386 / i686     -> linux_386
+```
+
+如果你的系统架构比较特殊，可以手动指定：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/robustmaster/sing-box-ss-warp/main/install-sing-box-ss-warp.sh | \
+  WGCF_ARCH=arm64 bash
+```
+
+也可以直接指定下载地址：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/robustmaster/sing-box-ss-warp/main/install-sing-box-ss-warp.sh | \
+  WGCF_URL='https://example.com/wgcf_binary' bash
+```
 
 `wgcf` 只在安装/生成 profile 时使用，不是常驻服务。安装完成后，WARP 出口由 `sing-box` 的 WireGuard endpoint 提供。
+
+`sing-box` 本身通过 SagerNet APT 源安装，实际可用架构取决于该源提供的包。
 
 默认端口：
 
@@ -152,6 +178,7 @@ SS_METHOD=2022-blake3-aes-256-gcm
 DIRECT_PASSWORD=<自动生成>
 WARP_PASSWORD=<自动生成>
 SERVER_IP=<自动检测>
+WGCF_ARCH=<自动检测>
 FORCE_WARP_REGISTER=0
 RUN_VERIFY=1
 DISABLE_WARP_SVC=1
