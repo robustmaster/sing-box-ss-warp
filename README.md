@@ -54,6 +54,7 @@ cat /root/sing-box-ss-warp.txt
 - 放行 UFW 的 TCP/UDP 端口，如果 UFW 已启用
 - 在 Debian/Ubuntu 上配置自动更新
 - 停用不再需要的 `warp-svc`
+- 配置 `sing-box` 异常退出后自动重启
 - 验证 direct / warp 的 TCP 和 UDP 是否可用
 
 ## 依赖
@@ -176,6 +177,27 @@ curl -fsSL https://raw.githubusercontent.com/robustmaster/sing-box-ss-warp/main/
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/robustmaster/sing-box-ss-warp/main/install-sing-box-ss-warp.sh | KEEP_WGCF=1 bash -s -- --uninstall
+```
+
+## 一键重启
+
+WARP 出口由 `sing-box` 内置的 WireGuard endpoint 提供。WARP 连接异常时，重启 `sing-box` 会重建连接。
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/robustmaster/sing-box-ss-warp/main/install-sing-box-ss-warp.sh | bash -s -- --restart
+```
+
+重启会做：
+
+- 校验 `/etc/sing-box/config.json`
+- 重启 `sing-box`
+- 重新验证 direct / warp 的 TCP 和 UDP
+
+脚本安装时也会配置 systemd 自动重启：
+
+```text
+Restart=on-failure
+RestartSec=5s
 ```
 
 ## 常用文件

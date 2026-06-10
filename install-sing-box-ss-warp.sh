@@ -29,6 +29,7 @@ the Cloudflare WARP WireGuard profile. wgcf is not a runtime service.
 
 Usage:
   bash install-sing-box-ss-warp.sh
+  bash install-sing-box-ss-warp.sh --restart
   bash install-sing-box-ss-warp.sh --uninstall
 
 Common environment variables:
@@ -102,6 +103,17 @@ valid_port() {
 
 random_password() {
   openssl rand -base64 32 | tr -d '\n'
+}
+
+configure_sing_box_systemd_restart() {
+  log "configuring sing-box systemd auto-restart"
+  install -d -m 0755 /etc/systemd/system/sing-box.service.d
+  cat > /etc/systemd/system/sing-box.service.d/10-auto-restart.conf <<'EOF'
+[Service]
+Restart=on-failure
+RestartSec=5s
+EOF
+  systemctl daemon-reload
 }
 
 safe_rm_rf() {
@@ -420,6 +432,8 @@ EOF
   install -o root -g "$group" -m 0640 "$candidate" "$config_path"
   rm -f "$candidate"
 
+  configure_sing_box_systemd_restart
+
   if ! systemctl enable --now sing-box; then
     [ -n "$backup" ] && cp -a "$backup" "$config_path"
     systemctl restart sing-box >/dev/null 2>&1 || true
@@ -566,6 +580,8 @@ uninstall_generated_files() {
     rm -f "$config_path"
     safe_rm_rf /etc/sing-box
     safe_rm_rf /var/lib/sing-box
+    rm -rf -- /etc/systemd/system/sing-box.service.d
+    systemctl daemon-reload >/dev/null 2>&1 || true
   fi
 
   if [ "${KEEP_WGCF:-0}" = "1" ]; then
@@ -598,6 +614,48 @@ uninstall_all() {
   uninstall_generated_files "$wgcf_dir" "$config_path" "$creds_path"
 
   log "uninstall complete"
+}
+
+restart_service() {
+  local creds_path="${CREDS_PATH:-/root/sing-box-ss-warp.txt}"
+  local direct_port
+  local warp_port
+  local direct_method
+  local warp_method
+  local direct_password
+  local warp_password
+
+  [ -f /etc/sing-box/config.json ] || die "missing /etc/sing-box/config.json"
+  need_cmd sing-box
+
+  log "checking sing-box config"
+  sing-box check -D /var/lib/sing-box -C /etc/sing-box
+
+  configure_sing_box_systemd_restart
+
+  log "restarting sing-box"
+  systemctl restart sing-box
+  sleep 2
+  systemctl is-active --quiet sing-box || die "sing-box is not active after restart"
+
+  if [ ! -f "$creds_path" ]; then
+    log "credentials file not found, skipping traffic verification: $creds_path"
+    return
+  fi
+
+  direct_port="$(credential_value "$creds_path" direct_port "")"
+  warp_port="$(credential_value "$creds_path" warp_port "")"
+  direct_method="$(credential_value "$creds_path" direct_method "")"
+  warp_method="$(credential_value "$creds_path" warp_method "")"
+  direct_password="$(credential_value "$creds_path" direct_password "")"
+  warp_password="$(credential_value "$creds_path" warp_password "")"
+
+  if [ -z "$direct_port" ] || [ -z "$warp_port" ] || [ -z "$direct_method" ] || [ -z "$warp_method" ] || [ -z "$direct_password" ] || [ -z "$warp_password" ]; then
+    log "credentials file is incomplete, skipping traffic verification"
+    return
+  fi
+
+  run_verification "$direct_port" "$warp_port" "$direct_method" "$warp_method" "$direct_password" "$warp_password"
 }
 
 disable_warp_svc() {
@@ -803,6 +861,12 @@ main() {
   case "${1:-}" in
     -h|--help)
       usage
+      exit 0
+      ;;
+    --restart)
+      need_root
+      need_cmd systemctl
+      restart_service
       exit 0
       ;;
     --uninstall)
