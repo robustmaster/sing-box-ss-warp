@@ -93,9 +93,11 @@ curl -fsSL https://raw.githubusercontent.com/robustmaster/sing-box-ss-warp/main/
 
 ## 重新生成 WARP 身份
 
-默认会复用已有的 WARP profile。
+第一次运行时，脚本会自动注册一个新的 WARP profile。
 
-如果想重新注册：
+如果 `/root/sing-box-wgcf/wgcf-account.toml` 已经存在，脚本会默认复用它，不重复注册。
+
+如果想丢开旧身份并重新注册：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/robustmaster/sing-box-ss-warp/main/install-sing-box-ss-warp.sh | \
@@ -155,4 +157,3 @@ INSTALL_UNATTENDED_UPGRADES=1
 ```bash
 curl -fsSL https://raw.githubusercontent.com/robustmaster/sing-box-ss-warp/main/install-sing-box-ss-warp.sh | bash -s -- --help
 ```
-
