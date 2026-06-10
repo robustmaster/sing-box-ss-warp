@@ -29,10 +29,13 @@ arm64
 sudo -i
 ```
 
-然后执行：
+推荐用防断连方式安装：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/robustmaster/sing-box-ss-warp/main/install-sing-box-ss-warp.sh | bash
+curl -fsSLo /root/install-sing-box-ss-warp.sh https://raw.githubusercontent.com/robustmaster/sing-box-ss-warp/main/install-sing-box-ss-warp.sh
+chmod +x /root/install-sing-box-ss-warp.sh
+nohup /root/install-sing-box-ss-warp.sh > /root/sing-box-ss-warp-install.log 2>&1 &
+tail -f /root/sing-box-ss-warp-install.log
 ```
 
 安装完成后查看节点信息：
@@ -42,6 +45,18 @@ cat /root/sing-box-ss-warp.txt
 ```
 
 里面会有 direct / warp 两个节点的端口、密码和 `ss://` 链接。
+
+如果 SSH 连接断开，安装会继续在后台运行。重新登录后查看日志：
+
+```bash
+tail -f /root/sing-box-ss-warp-install.log
+```
+
+前台安装也可以，但 SSH 断开时可能中断：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/robustmaster/sing-box-ss-warp/main/install-sing-box-ss-warp.sh | bash
+```
 
 ## 默认配置
 
@@ -71,8 +86,8 @@ aarch64 / arm64 -> linux_arm64
 如果自动识别不准，可以手动指定：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/robustmaster/sing-box-ss-warp/main/install-sing-box-ss-warp.sh | \
-  WGCF_ARCH=arm64 bash
+WGCF_ARCH=arm64 \
+nohup /root/install-sing-box-ss-warp.sh > /root/sing-box-ss-warp-install.log 2>&1 &
 ```
 
 `wgcf` 只在安装/生成 profile 时使用，不是常驻服务。安装完成后，WARP 出口由 `sing-box` 的 WireGuard endpoint 提供。
@@ -95,8 +110,8 @@ warp:   36243
 ## 自定义端口
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/robustmaster/sing-box-ss-warp/main/install-sing-box-ss-warp.sh | \
-  DIRECT_PORT=24701 WARP_PORT=55513 bash
+DIRECT_PORT=24701 WARP_PORT=55513 \
+nohup /root/install-sing-box-ss-warp.sh > /root/sing-box-ss-warp-install.log 2>&1 &
 ```
 
 ## 使用兼容性更好的加密方式
@@ -104,17 +119,16 @@ curl -fsSL https://raw.githubusercontent.com/robustmaster/sing-box-ss-warp/main/
 如果你的客户端不支持 `2022-blake3-aes-256-gcm`，可以用：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/robustmaster/sing-box-ss-warp/main/install-sing-box-ss-warp.sh | \
-  SS_METHOD=chacha20-ietf-poly1305 bash
+SS_METHOD=chacha20-ietf-poly1305 \
+nohup /root/install-sing-box-ss-warp.sh > /root/sing-box-ss-warp-install.log 2>&1 &
 ```
 
 ## 指定密码
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/robustmaster/sing-box-ss-warp/main/install-sing-box-ss-warp.sh | \
-  DIRECT_PASSWORD='your-direct-password' \
-  WARP_PASSWORD='your-warp-password' \
-  bash
+DIRECT_PASSWORD='your-direct-password' \
+WARP_PASSWORD='your-warp-password' \
+nohup /root/install-sing-box-ss-warp.sh > /root/sing-box-ss-warp-install.log 2>&1 &
 ```
 
 ## 指定服务器 IP
@@ -124,8 +138,8 @@ curl -fsSL https://raw.githubusercontent.com/robustmaster/sing-box-ss-warp/main/
 如果自动检测失败，可以手动指定：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/robustmaster/sing-box-ss-warp/main/install-sing-box-ss-warp.sh | \
-  SERVER_IP=1.2.3.4 bash
+SERVER_IP=1.2.3.4 \
+nohup /root/install-sing-box-ss-warp.sh > /root/sing-box-ss-warp-install.log 2>&1 &
 ```
 
 ## 重新生成 WARP 身份
@@ -137,8 +151,8 @@ curl -fsSL https://raw.githubusercontent.com/robustmaster/sing-box-ss-warp/main/
 如果想丢开旧身份并重新注册：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/robustmaster/sing-box-ss-warp/main/install-sing-box-ss-warp.sh | \
-  FORCE_WARP_REGISTER=1 bash
+FORCE_WARP_REGISTER=1 \
+nohup /root/install-sing-box-ss-warp.sh > /root/sing-box-ss-warp-install.log 2>&1 &
 ```
 
 ## 只下载后再运行
