@@ -150,6 +150,34 @@ chmod +x install-sing-box-ss-warp.sh
 ./install-sing-box-ss-warp.sh
 ```
 
+## 一键卸载
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/robustmaster/sing-box-ss-warp/main/install-sing-box-ss-warp.sh | bash -s -- --uninstall
+```
+
+卸载会处理：
+
+- 停用并卸载 `sing-box`
+- 删除 SagerNet 软件源
+- 删除 `/etc/sing-box` 和 `/var/lib/sing-box`
+- 删除 `/usr/local/bin/wgcf`
+- 删除 `/root/sing-box-wgcf`
+- 删除 `/root/sing-box-ss-warp.txt`
+- 删除脚本添加的 UFW 端口规则
+
+如果想保留配置文件：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/robustmaster/sing-box-ss-warp/main/install-sing-box-ss-warp.sh | KEEP_CONFIG=1 bash -s -- --uninstall
+```
+
+如果想保留 WARP profile：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/robustmaster/sing-box-ss-warp/main/install-sing-box-ss-warp.sh | KEEP_WGCF=1 bash -s -- --uninstall
+```
+
 ## 常用文件
 
 ```text
@@ -187,6 +215,8 @@ FORCE_WARP_REGISTER=0
 RUN_VERIFY=1
 DISABLE_WARP_SVC=1
 INSTALL_UNATTENDED_UPGRADES=1  # 仅 Debian/Ubuntu 生效
+KEEP_CONFIG=0                  # 卸载时使用
+KEEP_WGCF=0                    # 卸载时使用
 ```
 
 查看帮助：

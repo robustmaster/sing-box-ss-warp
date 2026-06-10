@@ -29,6 +29,7 @@ the Cloudflare WARP WireGuard profile. wgcf is not a runtime service.
 
 Usage:
   bash install-sing-box-ss-warp.sh
+  bash install-sing-box-ss-warp.sh --uninstall
 
 Common environment variables:
   DIRECT_PORT=55221
@@ -46,6 +47,8 @@ Common environment variables:
   RUN_VERIFY=1
   DISABLE_WARP_SVC=1
   INSTALL_UNATTENDED_UPGRADES=1
+  KEEP_CONFIG=0
+  KEEP_WGCF=0
 
 Credentials are written to:
   /root/sing-box-ss-warp.txt
@@ -99,6 +102,18 @@ valid_port() {
 
 random_password() {
   openssl rand -base64 32 | tr -d '\n'
+}
+
+safe_rm_rf() {
+  local path="$1"
+
+  case "$path" in
+    ""|"/"|"/root"|"/etc"|"/var"|"/var/lib"|"/usr"|"/usr/local"|"/usr/local/bin")
+      die "refusing to remove unsafe path: ${path}"
+      ;;
+  esac
+
+  rm -rf -- "$path"
 }
 
 install_dependencies() {
@@ -469,6 +484,122 @@ Unattended-Upgrade::Origins-Pattern:: "origin=sagernet_apt_fury_io,label=sagerne
 EOF
 }
 
+credential_value() {
+  local path="$1"
+  local key="$2"
+  local fallback="$3"
+  local value=""
+
+  if [ -f "$path" ]; then
+    value="$(awk -F '=' -v wanted="$key" '
+      $1 == wanted {
+        sub(/^[[:space:]]*/, "", $2)
+        sub(/[[:space:]]*$/, "", $2)
+        print $2
+        exit
+      }
+    ' "$path")"
+  fi
+
+  if [ -n "$value" ]; then
+    printf '%s' "$value"
+  else
+    printf '%s' "$fallback"
+  fi
+}
+
+delete_ufw_rules() {
+  local direct_port="$1"
+  local warp_port="$2"
+
+  if ! command -v ufw >/dev/null 2>&1; then
+    log "ufw not installed, skipping firewall cleanup"
+    return
+  fi
+
+  if ! ufw status | grep -q '^Status: active'; then
+    log "ufw not active, skipping firewall cleanup"
+    return
+  fi
+
+  log "removing ufw rules for Shadowsocks ports"
+  ufw --force delete allow "${direct_port}/tcp" >/dev/null 2>&1 || true
+  ufw --force delete allow "${direct_port}/udp" >/dev/null 2>&1 || true
+  ufw --force delete allow "${warp_port}/tcp" >/dev/null 2>&1 || true
+  ufw --force delete allow "${warp_port}/udp" >/dev/null 2>&1 || true
+}
+
+uninstall_sing_box_package() {
+  local pkg_manager="$1"
+
+  log "stopping sing-box"
+  systemctl disable --now sing-box >/dev/null 2>&1 || true
+
+  log "removing sing-box package"
+  case "$pkg_manager" in
+    apt)
+      DEBIAN_FRONTEND=noninteractive apt-get purge -y sing-box >/dev/null 2>&1 || true
+      rm -f /etc/apt/sources.list.d/sagernet.sources
+      rm -f /etc/apt/keyrings/sagernet.asc
+      rm -f /etc/apt/apt.conf.d/52unattended-upgrades-third-party
+      apt-get update >/dev/null 2>&1 || true
+      ;;
+    dnf)
+      dnf remove -y sing-box >/dev/null 2>&1 || true
+      rm -f /etc/yum.repos.d/sing-box.repo
+      ;;
+    *)
+      die "unsupported package manager: $pkg_manager"
+      ;;
+  esac
+}
+
+uninstall_generated_files() {
+  local wgcf_dir="$1"
+  local config_path="$2"
+  local creds_path="$3"
+
+  if [ "${KEEP_CONFIG:-0}" = "1" ]; then
+    log "KEEP_CONFIG=1, keeping sing-box config files"
+  else
+    log "removing sing-box config files"
+    rm -f "$config_path"
+    safe_rm_rf /etc/sing-box
+    safe_rm_rf /var/lib/sing-box
+  fi
+
+  if [ "${KEEP_WGCF:-0}" = "1" ]; then
+    log "KEEP_WGCF=1, keeping wgcf binary and profile"
+  else
+    log "removing wgcf binary and profile"
+    rm -f /usr/local/bin/wgcf
+    safe_rm_rf "$wgcf_dir"
+  fi
+
+  log "removing credentials file"
+  rm -f "$creds_path"
+}
+
+uninstall_all() {
+  local pkg_manager="$1"
+  local wgcf_dir="${WGCF_DIR:-/root/sing-box-wgcf}"
+  local config_path="${SING_BOX_CONFIG:-/etc/sing-box/config.json}"
+  local creds_path="${CREDS_PATH:-/root/sing-box-ss-warp.txt}"
+  local direct_port
+  local warp_port
+
+  direct_port="${DIRECT_PORT:-$(credential_value "$creds_path" direct_port 55221)}"
+  warp_port="${WARP_PORT:-$(credential_value "$creds_path" warp_port 36243)}"
+  valid_port "$direct_port" || die "invalid DIRECT_PORT: $direct_port"
+  valid_port "$warp_port" || die "invalid WARP_PORT: $warp_port"
+
+  delete_ufw_rules "$direct_port" "$warp_port"
+  uninstall_sing_box_package "$pkg_manager"
+  uninstall_generated_files "$wgcf_dir" "$config_path" "$creds_path"
+
+  log "uninstall complete"
+}
+
 disable_warp_svc() {
   if [ "${DISABLE_WARP_SVC:-1}" != "1" ]; then
     return
@@ -672,6 +803,12 @@ main() {
   case "${1:-}" in
     -h|--help)
       usage
+      exit 0
+      ;;
+    --uninstall)
+      need_root
+      need_cmd systemctl
+      uninstall_all "$(detect_pkg_manager)"
       exit 0
       ;;
     "")
