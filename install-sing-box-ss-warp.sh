@@ -53,6 +53,9 @@ Common environment variables:
 
 Credentials are written to:
   /root/sing-box-ss-warp.txt
+
+The install command also prints the direct and WARP client settings when it
+finishes.
 EOF
 }
 
@@ -656,6 +659,7 @@ restart_service() {
   fi
 
   run_verification "$direct_port" "$warp_port" "$direct_method" "$warp_method" "$direct_password" "$warp_password"
+  print_restart_summary
 }
 
 disable_warp_svc() {
@@ -679,6 +683,11 @@ ss_uri() {
   userinfo="$(printf '%s' "${method}:${password}" | base64 | tr -d '\n=' | tr '+/' '-_')"
   printf 'ss://%s@%s:%s#%s\n' "$userinfo" "$server" "$port" "$name"
 }
+
+VERIFY_DIRECT_TCP_IP=""
+VERIFY_WARP_TCP_IP=""
+VERIFY_DIRECT_UDP_DNS=""
+VERIFY_WARP_UDP_DNS=""
 
 write_credentials() {
   local path="$1"
@@ -772,6 +781,14 @@ EOF
     cleanup_client
     die "${name} TCP verification failed"
   fi
+  case "$name" in
+    direct)
+      VERIFY_DIRECT_TCP_IP="$ip"
+      ;;
+    warp)
+      VERIFY_WARP_TCP_IP="$ip"
+      ;;
+  esac
   printf '%s_tcp_ip=%s\n' "$name" "$ip"
 
   if ! python3 - "$name" "$local_port" <<'PY'
@@ -818,7 +835,106 @@ PY
     die "${name} UDP verification failed"
   fi
 
+  case "$name" in
+    direct)
+      VERIFY_DIRECT_UDP_DNS="ok"
+      ;;
+    warp)
+      VERIFY_WARP_UDP_DNS="ok"
+      ;;
+  esac
+
   cleanup_client
+}
+
+verification_status() {
+  local tcp_ip="$1"
+  local udp_dns="$2"
+
+  if [ "${RUN_VERIFY:-1}" != "1" ]; then
+    printf 'SKIPPED'
+  elif [ -n "$tcp_ip" ] && [ "$udp_dns" = "ok" ]; then
+    printf 'OK'
+  else
+    printf 'UNKNOWN'
+  fi
+}
+
+verification_exit_ip() {
+  local tcp_ip="$1"
+
+  if [ "${RUN_VERIFY:-1}" != "1" ]; then
+    printf 'not checked'
+  elif [ -n "$tcp_ip" ]; then
+    printf '%s' "$tcp_ip"
+  else
+    printf 'unknown'
+  fi
+}
+
+print_install_summary() {
+  local creds_path="$1"
+  local server="$2"
+  local direct_port="$3"
+  local warp_port="$4"
+  local direct_method="$5"
+  local warp_method="$6"
+  local direct_password="$7"
+  local warp_password="$8"
+  local direct_uri
+  local warp_uri
+
+  direct_uri="$(ss_uri ss-direct "$server" "$direct_port" "$direct_method" "$direct_password")"
+  warp_uri="$(ss_uri ss-warp "$server" "$warp_port" "$warp_method" "$warp_password")"
+
+  cat <<EOF
+
+============================================================
+Install result
+============================================================
+
+sing-box: OK, service is running
+direct: TCP/UDP: $(verification_status "$VERIFY_DIRECT_TCP_IP" "$VERIFY_DIRECT_UDP_DNS"), exit IP: $(verification_exit_ip "$VERIFY_DIRECT_TCP_IP")
+warp:   TCP/UDP: $(verification_status "$VERIFY_WARP_TCP_IP" "$VERIFY_WARP_UDP_DNS"), exit IP: $(verification_exit_ip "$VERIFY_WARP_TCP_IP")
+
+Shadowsocks client settings
+
+[direct - VPS public IP egress]
+Name: ss-direct
+Server: $server
+Port: $direct_port
+Method: $direct_method
+Password: $direct_password
+UDP: enabled
+URI: $direct_uri
+
+[warp - Cloudflare WARP egress]
+Name: ss-warp
+Server: $server
+Port: $warp_port
+Method: $warp_method
+Password: $warp_password
+UDP: enabled
+URI: $warp_uri
+
+Saved to: $creds_path
+============================================================
+EOF
+}
+
+print_restart_summary() {
+  cat <<EOF
+
+============================================================
+Restart result
+============================================================
+
+sing-box: OK, service is running
+direct: TCP/UDP: $(verification_status "$VERIFY_DIRECT_TCP_IP" "$VERIFY_DIRECT_UDP_DNS"), exit IP: $(verification_exit_ip "$VERIFY_DIRECT_TCP_IP")
+warp:   TCP/UDP: $(verification_status "$VERIFY_WARP_TCP_IP" "$VERIFY_WARP_UDP_DNS"), exit IP: $(verification_exit_ip "$VERIFY_WARP_TCP_IP")
+
+============================================================
+EOF
 }
 
 run_verification() {
@@ -948,9 +1064,15 @@ main() {
   run_verification "$direct_port" "$warp_port" "$direct_method" "$warp_method" "$direct_password" "$warp_password"
 
   log "done"
-  printf '\nCredentials saved to: %s\n\n' "$creds_path"
-  sed 's/^\(.*password=\).*/\1<redacted>/' "$creds_path"
-  printf '\nFull credentials are in %s\n' "$creds_path"
+  print_install_summary \
+    "$creds_path" \
+    "$server_ip" \
+    "$direct_port" \
+    "$warp_port" \
+    "$direct_method" \
+    "$warp_method" \
+    "$direct_password" \
+    "$warp_password"
 }
 
 main "$@"

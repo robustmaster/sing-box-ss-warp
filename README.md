@@ -32,19 +32,22 @@ sudo -i
 推荐用防断连方式安装：
 
 ```bash
+umask 077
 curl -fsSLo /root/install-sing-box-ss-warp.sh https://raw.githubusercontent.com/robustmaster/sing-box-ss-warp/main/install-sing-box-ss-warp.sh
 chmod +x /root/install-sing-box-ss-warp.sh
 nohup /root/install-sing-box-ss-warp.sh > /root/sing-box-ss-warp-install.log 2>&1 &
 tail -f /root/sing-box-ss-warp-install.log
 ```
 
-安装完成后查看节点信息：
+`umask 077` 会让安装日志只允许 root 读取，因为安装结果里包含密码。
 
-```bash
-cat /root/sing-box-ss-warp.txt
-```
+安装完成后，日志里会直接显示：
 
-里面会有 direct / warp 两个节点的端口、密码和 `ss://` 链接。
+- sing-box 是否运行成功
+- direct / warp 的 TCP 和 UDP 是否验证通过
+- direct / warp 的端口、加密方式、密码、`ss://` 链接
+
+同样的信息也会保存到 `/root/sing-box-ss-warp.txt`。
 
 如果 SSH 连接断开，安装会继续在后台运行。重新登录后查看日志：
 
