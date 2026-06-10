@@ -20,6 +20,9 @@ Install sing-box with two Shadowsocks inbounds:
   direct port -> VPS public IP
   warp port   -> Cloudflare WARP via sing-box WireGuard endpoint
 
+This installer downloads wgcf from ViRb3/wgcf to register and generate
+the Cloudflare WARP WireGuard profile. wgcf is not a runtime service.
+
 Usage:
   bash install-sing-box-ss-warp.sh
 

@@ -34,13 +34,19 @@ cat /root/sing-box-ss-warp.txt
 脚本默认会：
 
 - 安装 `sing-box`
-- 生成 Cloudflare WARP WireGuard profile
+- 下载 `wgcf`，生成 Cloudflare WARP WireGuard profile
 - 创建两个 Shadowsocks 入口
 - 自动生成 Shadowsocks 密码
 - 放行 UFW 的 TCP/UDP 端口，如果 UFW 已启用
 - 配置自动更新
 - 停用不再需要的 `warp-svc`
 - 验证 direct / warp 的 TCP 和 UDP 是否可用
+
+## 依赖
+
+脚本会下载 [ViRb3/wgcf](https://github.com/ViRb3/wgcf) 的 Linux amd64 二进制，用来注册 Cloudflare WARP 账号并生成 WireGuard profile。
+
+`wgcf` 只在安装/生成 profile 时使用，不是常驻服务。安装完成后，WARP 出口由 `sing-box` 的 WireGuard endpoint 提供。
 
 默认端口：
 
